@@ -26,11 +26,11 @@ import torch
 from safetensors.torch import save_file
 
 # ── paths ──────────────────────────────────────────────────────────────────────
-BASE = Path("/home/AI_trainer/Desktop/QWEN_project")
+BASE = Path("/home/User/Desktop/QWEN_project")
 DEFAULT_GGUF  = BASE / "Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf"
 DEFAULT_MMPROJ = BASE / "mmproj-Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf"
 DEFAULT_SRC   = BASE / "Qwen3.5-9B"        # tokenizer + reference config
-DEFAULT_OUT   = r'/mnt/DATA9/LLM_model/converted/Qwen3.5-9B-Uncensored-HF'
+DEFAULT_OUT   = r'/mnt/LLM_model/converted/Qwen3.5-9B-Uncensored-HF'
 
 # ── architecture constants (from config.json text_config) ──────────────────────
 NUM_LAYERS          = 32
@@ -271,7 +271,6 @@ def convert_vision_tensor(name: str, tensor: torch.Tensor):
     if name == "v.patch_embd.weight":
         return  # handled together with .1 below (we yield from the .1 branch)
     if name == "v.patch_embd.weight.1":
-        # caller passes both halves via the merge dict — see vision_pass below
         return
     if name == "v.patch_embd.bias":
         # Qwen3_5VisionPatchEmbed.proj.bias — direct copy.
@@ -455,10 +454,10 @@ def build_text_config(src_dir: Path) -> dict:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--gguf",     type=Path, default=DEFAULT_GGUF)
-    ap.add_argument("--mmproj",   default=str(DEFAULT_MMPROJ), help="Vision mmproj GGUF (set to '' to skip)")
-    ap.add_argument("--src",      type=Path, default=DEFAULT_SRC, help="Source HF repo for tokenizer/config")
-    ap.add_argument("--out",      type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--gguf",     type=Path, required=True)
+    ap.add_argument("--mmproj",   type=Path, default=None, help="Vision mmproj GGUF (set to '' to skip)")
+    ap.add_argument("--src",      type=Path, required=True, help="Source HF repo for tokenizer/config")
+    ap.add_argument("--out",      type=Path, required=True)
     ap.add_argument("--shard-gb", type=float, default=4.0, help="Max shard size in GB")
     ap.add_argument("--device",   default="cuda", help="Device for tensor ops (cuda/cpu)")
     args = ap.parse_args()
@@ -491,7 +490,7 @@ def main():
             hf_tensors[hf_name] = hf_tensor.contiguous().to(torch.bfloat16)
 
     # ── 2b. vision mmproj ─────────────────────────────────────────────────────
-    mmproj_path = Path(args.mmproj) if args.mmproj else None
+    mmproj_path = args.mmproj
     if mmproj_path is not None and mmproj_path.exists() and mmproj_path.is_file():
         print(f"\n[2b] Reading vision mmproj GGUF: {mmproj_path}")
         v_reader = gguf_lib.GGUFReader(str(mmproj_path))
